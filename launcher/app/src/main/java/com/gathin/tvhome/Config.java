@@ -236,6 +236,14 @@ final class Config {
     final int homeIdleClockMinutes;
     /** The dock band as light frosted glass like the pills (config.xml, dock_glass); false keeps the solid band. */
     final boolean dockGlass;
+    /** ascii_animals: animals drawn live behind Home, comma separated (koi,jellyfish,...); empty for none. */
+    String asciiAnimals = "";
+    /** ascii_animals_minutes: minutes before the next animal in the list takes over; 0 keeps the first. */
+    int asciiAnimalsMinutes = 10;
+    /** ascii_animals_fps: frame-rate cap for the animals. */
+    int asciiAnimalsFps = 30;
+    /** home_board: package of the add-on whose to-dos, notes and reminders Home shows; empty for none. */
+    String homeBoard = "";
     /** The dock band's padding equals the gap between its tiles (config.xml, dock_even_padding); false keeps the fixed padding. */
     final boolean dockEvenPadding;
     /** The dock band and its edge draw (dock_band); false leaves the tiles floating on the wallpaper. */
@@ -717,7 +725,19 @@ final class Config {
         Festival festival = json == null ? Festival.NONE : Festival.parse(festivalName(json),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
 
-        return new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
+        // Live ASCII animals behind Home (ascii_animals, a comma list; empty keeps them off). Set after the
+        // constructor so the long positional one stays as upstream has it.
+        String asciiAnimals = res.getString(R.string.ascii_animals).trim();
+        int asciiMinutes = res.getInteger(R.integer.ascii_animals_minutes);
+        int asciiFps = res.getInteger(R.integer.ascii_animals_fps);
+        String homeBoard = res.getString(R.string.home_board).trim();
+        if (json != null) {
+            homeBoard = string(json, "home_board", homeBoard).trim();
+            asciiAnimals = string(json, "ascii_animals", asciiAnimals).trim();
+            asciiMinutes = integer(json, "ascii_animals_minutes", asciiMinutes, 0, 1440);
+            asciiFps = integer(json, "ascii_animals_fps", asciiFps, 10, 60);
+        }
+        Config cfg = new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
                 packageMap(appBanners), panelService, panelAction, panelExtra, coocaaSources, inputAction, inputSources, inputUriScheme, Math.max(1, columns),
                 Math.max(0, rowsBelow), animations, advancedEffects, shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv,
                 openOnStartChoice, dockTitle, dockRow, topMenu, launcherSettingsButton, reorderButton, showNetworkPill, showInputsPill,
@@ -733,6 +753,11 @@ final class Config {
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
                 settingsKeyClearTask);
+        cfg.asciiAnimals = asciiAnimals;
+        cfg.asciiAnimalsMinutes = Math.max(0, Math.min(1440, asciiMinutes));
+        cfg.asciiAnimalsFps = Math.max(10, Math.min(60, asciiFps));
+        cfg.homeBoard = homeBoard;
+        return cfg;
     }
 
     /**

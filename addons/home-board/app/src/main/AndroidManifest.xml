@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- Only to read your Todoist projects (api.todoist.com); nothing else goes online. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- No activity at all: nothing to open on the TV, no tile in the app grid. Home reads the board below. -->
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="false">
+
+        <!-- Clean Your TV launcher, home_board: where Home reads the to-dos, notes and reminders. -->
+        <meta-data android:name="com.gathin.tvhome.board" android:value="io.github.whitevulpes.homeboard.board" />
+
+        <!-- Read-only: what Home shows anyway. Holds no token. -->
+        <provider
+            android:name=".BoardProvider"
+            android:authorities="io.github.whitevulpes.homeboard.board"
+            android:exported="true" />
+
+        <!-- The setup script's door (token, project names). WRITE_SECURE_SETTINGS is held by the ADB shell only,
+             so no app on the TV can call it. -->
+        <provider
+            android:name=".SetupProvider"
+            android:authorities="io.github.whitevulpes.homeboard.setup"
+            android:exported="true"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS" />
+    </application>
+</manifest>

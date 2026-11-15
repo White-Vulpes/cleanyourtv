@@ -62,6 +62,8 @@
         </intent>
         <!-- China-market MIUI TV firmware: the Settings and Wi-Fi pills fall back to Xiaomi's settings app.
              Fire TV: the real settings menu lives in the stock launcher (see settings_fallback_components). -->
+        <!-- home_board: the Home Board add-on has no activity, so package visibility would hide it otherwise. -->
+        <package android:name="io.github.whitevulpes.homeboard" />
         <package android:name="com.xiaomi.mitv.settings" />
         <package android:name="com.tcl.settings" />
         <package android:name="com.amazon.tv.launcher" />

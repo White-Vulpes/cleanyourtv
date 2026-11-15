@@ -145,6 +145,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private RecyclerView grid;
     private FrameLayout root;
     private WallpaperPlayer wallpaperPlayer;
+    /** ascii_animals: live ASCII animals at the very back of Home; null when off. */
+    private com.gathin.tvhome.ascii.AsciiAnimalsView asciiAnimals;
     private GlassView glass;
     private View ambient;
     private TextView heroName;
@@ -202,6 +204,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView raceKicker, raceHeadline, raceSessions;
     /** game_day: each team's next game from an add-on, rotating in the race panel; null when the key is off. */
     private GameDay gameDay;
+    /** home_board: to-dos, notes and reminders from an add-on, between the clock and the dock; null when off. */
+    private HomeBoard homeBoard;
+    private HomeBoard.Panel boardPanel;
     private View raceBar;
     private LinearLayout racePager;
     private long rotationStart;
@@ -441,6 +446,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         public void run() {
             updateGreeting();
             updatePanel();
+            if (homeBoard != null) homeBoard.read();   // "Today 6:00 PM" turns overdue; the add-on refetches if stale
             // The pill follows the network callbacks and each return to Home; only the festive light follows the
             // signal level, so only it needs this minute's binder calls (about 7 ms on the UI thread).
             if (festive) updateWifiLabel();
@@ -513,6 +519,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // the theme's background, so launch looks the same.
         getWindow().setBackgroundDrawable(null);
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
+        if (!cfg.asciiAnimals.isEmpty()) {
+            asciiAnimals = new com.gathin.tvhome.ascii.AsciiAnimalsView(this, cfg.asciiAnimals,
+                    cfg.asciiAnimalsMinutes, cfg.asciiAnimalsFps);
+            if (asciiAnimals.hasAnimals()) {
+                root.addView(asciiAnimals, 0, new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            } else {
+                asciiAnimals = null;
+            }
+        }
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
@@ -585,6 +601,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         raceBar = findViewById(R.id.raceBar);
         racePager = findViewById(R.id.racePager);
         gameDay = GameDay.create(this, cfg.gameDay, handler, this::updatePanel);
+        homeBoard = HomeBoard.create(this, cfg.homeBoard, handler, this::updateBoard);
+        if (homeBoard != null) {
+            boardPanel = new HomeBoard.Panel(this);
+            float d = getResources().getDisplayMetrics().density;
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
+            lp.setMarginStart(Math.round(60 * d));
+            lp.setMarginEnd(Math.round(60 * d));
+            lp.topMargin = Math.round(126 * d);
+            // In the race panel's place in the stack: over the wallpaper and the animals, under the glass and dock.
+            root.addView(boardPanel, root.indexOfChild(racePanel) + 1, lp);
+        }
         // The rotation runs on the clock that never jumps: setting the TV's time must not stall or stretch a turn.
         rotationStart = SystemClock.elapsedRealtime();
         showStats = cfg.showStats;
@@ -780,6 +808,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     racePanel.setTranslationY(-shift);
                     int room = Math.max(1, racePanel.getTop() - clockBlock.getBottom());
                     racePanel.setAlpha(Math.max(0f, 1f - shift / (float) room));
+                }
+            });
+        }
+
+        // home_board: rides up with the cards like the race panel, and fades out before it reaches the clock.
+        if (boardPanel != null) {
+            View clockBlock = findViewById(R.id.leftBlock);
+            grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                    int shift = rv.canScrollVertically(-1) ? rv.computeVerticalScrollOffset() : 0;
+                    boardPanel.setTranslationY(-shift);
+                    int room = Math.max(1, boardPanel.getTop() - clockBlock.getBottom());
+                    boardPanel.setAlpha(Math.max(0f, 1f - shift / (float) room));
                 }
             });
         }
@@ -1138,8 +1180,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (showStats) startStats();
         if (gameDay != null) gameDay.start();
+        if (homeBoard != null) homeBoard.start();
         sky.update();
         wallpaperPlayer.start();
+        if (asciiAnimals != null) asciiAnimals.start();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && lamp != null) {
             lamp.start();
@@ -1314,6 +1358,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
+        if (asciiAnimals != null) asciiAnimals.stop();
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
@@ -1323,6 +1368,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         startPending = null;   // leaving Home before the network came back: the boot's app stays closed
         stopStats();
         if (gameDay != null) gameDay.stop();
+        if (homeBoard != null) homeBoard.stop();
         handler.removeCallbacks(turnTick);
         if (lamp != null) lamp.stop();
         cancelPendingFocusScroll();
@@ -1362,6 +1408,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtCache.clear();
         heroArtKey = null;
         wallpaperPlayer.releaseForMemoryPressure();
+        if (asciiAnimals != null) asciiAnimals.release();
         tileRefresh.invalidate();
     }
 
@@ -1391,9 +1438,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         RemoteKeys.release(this);
         cancelHoldOk();
         if (gameDay != null) gameDay.shutdown();
+        if (homeBoard != null) homeBoard.shutdown();
         unregisterReceiver(packageReceiver);
         if (openOnStartOnWake) unregisterReceiver(wakeReceiver);
         wallpaperPlayer.close();
+        if (asciiAnimals != null) asciiAnimals.close();
         ConnectivityManager cm = getApplicationContext().getSystemService(ConnectivityManager.class);   // as registered
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);
@@ -2799,6 +2848,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * The race panel's place under the clock. With game_day off it is exactly the F1 panel (updateRace). With it on,
      * each team's next game takes a turn there, and the theme's F1 weekend is one more turn drawn as today.
      */
+    private void updateBoard() {
+        if (homeBoard != null && boardPanel != null) boardPanel.show(homeBoard.entries(), homeBoard.status());
+    }
+
     private void updatePanel() {
         if (gameDay == null) {
             updateRace();
