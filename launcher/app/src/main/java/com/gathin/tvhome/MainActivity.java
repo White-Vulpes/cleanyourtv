@@ -207,6 +207,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** home_board: to-dos, notes and reminders from an add-on, between the clock and the dock; null when off. */
     private HomeBoard homeBoard;
     private HomeBoard.Panel boardPanel;
+    private List<String> birthdays = new ArrayList<>();
     private View raceBar;
     private LinearLayout racePager;
     private long rotationStart;
@@ -447,6 +448,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateGreeting();
             updatePanel();
             if (homeBoard != null) homeBoard.read();   // "Today 6:00 PM" turns overdue; the add-on refetches if stale
+            updateBirthday();                           // midnight starts or ends a birthday
             // The pill follows the network callbacks and each return to Home; only the festive light follows the
             // signal level, so only it needs this minute's binder calls (about 7 ms on the UI thread).
             if (festive) updateWifiLabel();
@@ -601,6 +603,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         raceBar = findViewById(R.id.raceBar);
         racePager = findViewById(R.id.racePager);
         gameDay = GameDay.create(this, cfg.gameDay, handler, this::updatePanel);
+        birthdays = cfg.birthdays;
         homeBoard = HomeBoard.create(this, cfg.homeBoard, handler, this::updateBoard);
         if (homeBoard != null) {
             boardPanel = new HomeBoard.Panel(this);
@@ -1183,7 +1186,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (homeBoard != null) homeBoard.start();
         sky.update();
         wallpaperPlayer.start();
-        if (asciiAnimals != null) asciiAnimals.start();
+        if (asciiAnimals != null) {
+            updateBirthday();
+            asciiAnimals.start();
+        }
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && lamp != null) {
             lamp.start();
@@ -2850,6 +2856,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void updateBoard() {
         if (homeBoard != null && boardPanel != null) boardPanel.show(homeBoard.entries(), homeBoard.status());
+        updateBirthday();
+    }
+
+    /** birthdays: fireworks and the name behind Home on the day, the animals again the next day. */
+    private void updateBirthday() {
+        if (asciiAnimals == null) return;
+        asciiAnimals.setBanner(Birthdays.banner(Birthdays.today(birthdays,
+                homeBoard == null ? null : homeBoard.entries())));
     }
 
     private void updatePanel() {

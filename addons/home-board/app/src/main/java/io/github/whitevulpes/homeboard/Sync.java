@@ -50,7 +50,7 @@ final class Sync {
         }
         String[] p = store.boardNames();
         try {
-            List<Item> items = new Todoist(token).fetch(p[0], p[1], p[2], p[3]);
+            List<Item> items = new Todoist(token).fetch(p[0], p[1], p[2], p[3], p[4]);
             store.saveBoard(items, now);
             return "";
         } catch (IOException e) {

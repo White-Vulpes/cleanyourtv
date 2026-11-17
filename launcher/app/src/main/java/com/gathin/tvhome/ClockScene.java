@@ -64,10 +64,20 @@ final class ClockScene {
     private Map<String, Set<String>> moods;
     private String latitude, longitude;
 
+    /** ascii_animals behind the clock, and home_board under it; null when off (useAnimalsAndBoard). */
+    private com.gathin.tvhome.ascii.AsciiAnimalsView animals;
+    private HomeBoard board;
+    private HomeBoard.Panel boardPanel;
+    /** With the board shown, the clock and lists keep one place instead of drifting every minute. */
+    private boolean still;
+    private List<String> birthdays = new ArrayList<>();
+
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
             moveClock();
+            if (board != null) board.read();   // relative times move on; the add-on refetches when stale
+            updateBirthday();
             shiftGlow();
             advanceWallpaper();
             handler.postDelayed(this, MOVE_MS);
@@ -98,11 +108,79 @@ final class ClockScene {
         handler.postDelayed(tick, MOVE_MS);
         clockRefresh.start();
         if (wallpaperFile != null && !wallpaperShown) loadWallpaper();
+        if (animals != null) {
+            updateBirthday();
+            animals.start();
+        }
+        if (board != null) board.start();
+    }
+
+    /**
+     * ascii_animals and home_board, as on Home: the animals behind the clock in place of the glow and the wallpaper,
+     * and the to-dos, notes and reminders under the date, drifting with the clock so nothing burns in.
+     * Call after useHomeWallpaper() and before start(); close() when the scene goes away.
+     */
+    void useAnimalsAndBoard(Context ctx) {
+        Config cfg;
+        try {
+            cfg = Config.load(ctx);
+        } catch (RuntimeException e) {
+            return;
+        }
+        android.view.ViewGroup frame = (android.view.ViewGroup) ambient.getParent();
+        float d = ctx.getResources().getDisplayMetrics().density;
+        if (!cfg.asciiAnimals.isEmpty()) {
+            com.gathin.tvhome.ascii.AsciiAnimalsView v = new com.gathin.tvhome.ascii.AsciiAnimalsView(ctx,
+                    cfg.asciiAnimals, cfg.asciiAnimalsMinutes, cfg.asciiAnimalsFps);
+            if (v.hasAnimals()) {
+                animals = v;
+                frame.addView(v, 0, new android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+                ambient.setVisibility(View.GONE);   // no glow or picture over the animals
+                wallpaperFile = null;
+                wallpaperShown = true;              // and no glow steps for a hidden view
+            }
+        }
+        birthdays = cfg.birthdays;
+        board = HomeBoard.create(ctx, cfg.homeBoard, handler, () -> {
+            if (board != null && boardPanel != null) boardPanel.show(board.entries(), board.status());
+            updateBirthday();
+        });
+        if (board != null && content instanceof android.widget.LinearLayout) {
+            boardPanel = new HomeBoard.Panel(ctx, 10, 14f);   // ten items a column, no "+N more"
+            android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                    Math.round(840 * d), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = Math.round(28 * d);
+            lp.setMarginStart(Math.round(6 * d));
+            ((android.widget.LinearLayout) content).addView(boardPanel, lp);
+            still = true;
+        }
+    }
+
+    /**
+     * birthdays: on the day, fireworks behind the name fill the screen, so the clock and the lists step aside
+     * until the next day.
+     */
+    private void updateBirthday() {
+        if (animals == null) return;
+        String banner = Birthdays.banner(Birthdays.today(birthdays, board == null ? null : board.entries()));
+        animals.setBanner(banner);
+        content.setVisibility(banner == null ? View.VISIBLE : View.INVISIBLE);
+    }
+
+    /** The scene is gone for good: end the animals' thread and the board's reader. */
+    void close() {
+        stop();
+        if (animals != null) animals.close();
+        if (board != null) board.shutdown();
     }
 
     void stop() {
         handler.removeCallbacksAndMessages(null);   // the tick and any glow steps still queued
         clockRefresh.stop();
+        if (animals != null) animals.stop();
+        if (board != null) board.stop();
         content.animate().cancel();
         wallpaperGeneration++;   // a decode still running must not attach its picture to a stopped scene
     }
@@ -228,6 +306,7 @@ final class ClockScene {
     }
 
     private void moveClock() {
+        if (still) return;   // home_board: the clock and lists stay put; the animals behind them move
         content.animate().alpha(0f).setDuration(900).withLayer().withEndAction(() -> {
             placeClock();
             content.animate().alpha(1f).setDuration(1200).withLayer().start();
@@ -237,6 +316,12 @@ final class ClockScene {
     /** A random spot that keeps the whole clock on screen, with the glow centred behind it. */
     private void placeClock() {
         View parent = (View) content.getParent();
+        if (still) {
+            float d = parent.getResources().getDisplayMetrics().density;
+            content.setX(60 * d);
+            content.setY(28 * d);
+            return;
+        }
         int maxX = Math.max(0, parent.getWidth() - content.getWidth());
         int maxY = Math.max(0, parent.getHeight() - content.getHeight());
         float x = maxX * (0.1f + 0.8f * random.nextFloat());

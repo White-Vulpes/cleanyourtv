@@ -244,6 +244,8 @@ final class Config {
     int asciiAnimalsFps = 30;
     /** home_board: package of the add-on whose to-dos, notes and reminders Home shows; empty for none. */
     String homeBoard = "";
+    /** birthdays: "Name=MM-DD" entries; on that day the ASCII background shows fireworks and the name (Birthdays). */
+    List<String> birthdays = new ArrayList<>();
     /** The dock band's padding equals the gap between its tiles (config.xml, dock_even_padding); false keeps the fixed padding. */
     final boolean dockEvenPadding;
     /** The dock band and its edge draw (dock_band); false leaves the tiles floating on the wallpaper. */
@@ -731,7 +733,9 @@ final class Config {
         int asciiMinutes = res.getInteger(R.integer.ascii_animals_minutes);
         int asciiFps = res.getInteger(R.integer.ascii_animals_fps);
         String homeBoard = res.getString(R.string.home_board).trim();
+        List<String> birthdays = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.birthdays)));
         if (json != null) {
+            birthdays = stringList(json, "birthdays", birthdays);
             homeBoard = string(json, "home_board", homeBoard).trim();
             asciiAnimals = string(json, "ascii_animals", asciiAnimals).trim();
             asciiMinutes = integer(json, "ascii_animals_minutes", asciiMinutes, 0, 1440);
@@ -757,6 +761,7 @@ final class Config {
         cfg.asciiAnimalsMinutes = Math.max(0, Math.min(1440, asciiMinutes));
         cfg.asciiAnimalsFps = Math.max(10, Math.min(60, asciiFps));
         cfg.homeBoard = homeBoard;
+        cfg.birthdays = birthdays;
         return cfg;
     }
 

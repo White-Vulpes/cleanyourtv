@@ -3,8 +3,8 @@ package com.gathin.tvhome;
 import android.service.dreams.DreamService;
 
 /**
- * Screensaver: the launcher's thin clock and date on black, over a slow ambient glow (ClockScene).
- * No network, no images: cheap enough for a 1 GB TV.
+ * Screensaver: the launcher's thin clock and date on black, over a slow ambient glow (ClockScene), or over the
+ * ASCII animals with the to-do board under the clock when ascii_animals and home_board are set.
  */
 public class ClockDream extends DreamService {
 
@@ -25,6 +25,7 @@ public class ClockDream extends DreamService {
         ClockFormat.apply(getWindow().getDecorView(), Config.load(this).clockFormat);
         scene = new ClockScene(getWindow().getDecorView());
         scene.useHomeWallpaper(this);
+        scene.useAnimalsAndBoard(this);
     }
 
     @Override
@@ -41,7 +42,7 @@ public class ClockDream extends DreamService {
 
     @Override
     public void onDetachedFromWindow() {
-        if (scene != null) scene.stop();
+        if (scene != null) scene.close();
         super.onDetachedFromWindow();
     }
 }

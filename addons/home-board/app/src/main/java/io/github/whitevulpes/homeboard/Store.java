@@ -21,6 +21,7 @@ import java.util.List;
 final class Store {
     static final String DEFAULT_PROJECT = "TV Board";
     static final String DEFAULT_TODO = "To do", DEFAULT_NOTES = "Notes", DEFAULT_REMINDERS = "Reminders";
+    static final String DEFAULT_BIRTHDAYS = "Birthdays";
 
     private final SharedPreferences prefs;
     private final File cache;
@@ -39,10 +40,15 @@ final class Store {
         cache.delete();
     }
 
-    /** {project, to-do section, notes section, reminders section}. */
+    /** {project, to-do section, notes section, reminders section, birthdays section}. */
     String[] boardNames() {
         return new String[] {prefs.getString("project", DEFAULT_PROJECT), prefs.getString("s_todo", DEFAULT_TODO),
-                prefs.getString("s_notes", DEFAULT_NOTES), prefs.getString("s_reminders", DEFAULT_REMINDERS)};
+                prefs.getString("s_notes", DEFAULT_NOTES), prefs.getString("s_reminders", DEFAULT_REMINDERS),
+                prefs.getString("s_birthdays", DEFAULT_BIRTHDAYS)};
+    }
+
+    void setBirthdaysSection(String name) {
+        prefs.edit().putString("s_birthdays", name).apply();
     }
 
     void setBoardNames(String project, String todo, String notes, String reminders) {

@@ -7,7 +7,10 @@ clock and the dock. View only on the TV: add, edit and tick things off in the **
   Board view and they are its columns). Tasks in no section count as to-dos; other sections stay off the TV, and so
   do sub-tasks. The names can be changed, see below.
 - Reminders are tasks with a due date (and time); they are listed soonest first, overdue ones in red.
-- A note's description shows as a second, dimmer line.
+- A note's description shows after its title, dimmer.
+- **Birthdays** (optional fourth section): a task per person, the name as the task and the birthday as a due date
+  that repeats every year ("Mau every Nov 17"). On the day, the launcher's ASCII background turns into fireworks
+  behind "HAPPY BIRTHDAY MAU", on Home and in the screensaver, and goes back to the animals the next day.
 - Ticking a task off on the phone removes it from the TV within about a minute.
 
 ## How it works

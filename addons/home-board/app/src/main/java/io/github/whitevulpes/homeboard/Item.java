@@ -5,7 +5,7 @@ import org.json.JSONObject;
 
 /** One line on the board: a to-do, a note or a reminder, as read from a Todoist task. */
 final class Item {
-    static final String TODO = "todo", NOTE = "note", REMINDER = "reminder";
+    static final String TODO = "todo", NOTE = "note", REMINDER = "reminder", BIRTHDAY = "birthday";
 
     final String kind;
     final String text;

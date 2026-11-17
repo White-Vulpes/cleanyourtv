@@ -44,18 +44,19 @@ final class Todoist {
      * to-dos, the notes section notes, the reminders section reminders; other sections are left out. An
      * IOException's message is short and safe to show (it never contains the token).
      */
-    List<Item> fetch(String projectName, String todoSection, String notesSection, String remindersSection)
-            throws IOException {
+    List<Item> fetch(String projectName, String todoSection, String notesSection, String remindersSection,
+            String birthdaysSection) throws IOException {
         String project = find(list("projects"), projectName);
         if (project == null) throw new IOException("no project named " + projectName);
         String pid = URLEncoder.encode(project, "UTF-8");
-        String todo = null, notes = null, reminders = null;
+        String todo = null, notes = null, reminders = null, birthdays = null;
         for (JSONObject sec : list("sections?project_id=" + pid)) {
             if (sec.optBoolean("is_deleted", false) || sec.optBoolean("is_archived", false)) continue;
             String name = norm(sec.optString("name", "")), id = sec.optString("id", null);
             if (name.equals(norm(todoSection))) todo = id;
             else if (name.equals(norm(notesSection))) notes = id;
             else if (name.equals(norm(remindersSection))) reminders = id;
+            else if (name.equals(norm(birthdaysSection))) birthdays = id;
         }
         List<Item> out = new ArrayList<>();
         for (JSONObject t : list("tasks?project_id=" + pid)) {
@@ -65,6 +66,7 @@ final class Todoist {
             if (section == null || section.equals(todo)) kind = Item.TODO;
             else if (section.equals(notes)) kind = Item.NOTE;
             else if (section.equals(reminders)) kind = Item.REMINDER;
+            else if (section.equals(birthdays)) kind = Item.BIRTHDAY;   // the name, due on the day (yearly)
             else continue;
             if (t.optBoolean("checked", false) || t.optBoolean("is_deleted", false)) continue;
             // Sub-tasks stay on the phone; the board shows the top level.

@@ -435,6 +435,14 @@
          opt-in; empty keeps the panel off. Also "home_board" in a theme's config.json. -->
     <string name="home_board" translatable="false">io.github.whitevulpes.homeboard</string>
 
+    <!-- Birthdays: on the day, the ASCII background (Home and the screensaver) shows fireworks behind
+         "HAPPY BIRTHDAY <NAME>" instead of the animals, and goes back to them the next day. "Name=MM-DD", one per
+         item. home_board adds the tasks in the Birthdays section of the Todoist project. Also "birthdays" in a
+         theme's config.json. -->
+    <string-array name="birthdays" translatable="false">
+        <item>Mau=11-17</item>
+    </string-array>
+
     <!-- Basic motion is on; advanced effects are opt-in in the launcher's own Settings screen. -->
     <bool name="animations">true</bool>
     <bool name="advanced_effects">false</bool>

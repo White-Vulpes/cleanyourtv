@@ -12,6 +12,7 @@ import android.os.Bundle;
  *   content call --uri content://io.github.whitevulpes.homeboard.setup --method token --arg TOKEN
  *   content call --uri ... --method board --arg "TV Board"                         the project
  *   content call --uri ... --method board --arg "TV Board|To do|Notes|Reminders"   and its section names
+ *   content call --uri ... --method board --arg "TV Board|To do|Notes|Reminders|Birthdays"
  *   content call --uri ... --method refresh        fetch now; answers ok or the reason it failed
  *   content call --uri ... --method status
  * </pre>
@@ -36,7 +37,7 @@ public final class SetupProvider extends ContentProvider {
                 break;
             case "board": {
                 String[] p = arg == null ? new String[0] : arg.split("\\|");
-                boolean ok = p.length == 1 || p.length == 4;
+                boolean ok = p.length == 1 || p.length == 4 || p.length == 5;
                 for (String x : p) ok &= !x.trim().isEmpty();
                 if (!ok) {
                     out.putString("result", "error: give the project, or project|to do|notes|reminders");
@@ -45,6 +46,7 @@ public final class SetupProvider extends ContentProvider {
                     out.putString("result", "project saved");
                 } else {
                     store.setBoardNames(p[0].trim(), p[1].trim(), p[2].trim(), p[3].trim());
+                    if (p.length == 5) store.setBirthdaysSection(p[4].trim());
                     out.putString("result", "project and sections saved");
                 }
                 break;
@@ -58,7 +60,7 @@ public final class SetupProvider extends ContentProvider {
             case "status": {
                 String[] p = store.boardNames();
                 out.putString("result", (store.token().isEmpty() ? "no token" : "token set")
-                        + "; project " + p[0] + ", sections " + p[1] + " | " + p[2] + " | " + p[3]
+                        + "; project " + p[0] + ", sections " + p[1] + " | " + p[2] + " | " + p[3] + " | " + p[4]
                         + "; " + count(store)
                         + (store.error().isEmpty() ? "" : "; last error: " + store.error()));
                 break;
@@ -70,13 +72,14 @@ public final class SetupProvider extends ContentProvider {
     }
 
     private static String count(Store store) {
-        int todo = 0, notes = 0, reminders = 0;
+        int todo = 0, notes = 0, reminders = 0, birthdays = 0;
         for (Item i : store.board()) {
             if (Item.TODO.equals(i.kind)) todo++;
             else if (Item.NOTE.equals(i.kind)) notes++;
-            else reminders++;
+            else if (Item.REMINDER.equals(i.kind)) reminders++;
+            else birthdays++;
         }
-        return todo + " to-dos, " + notes + " notes, " + reminders + " reminders";
+        return todo + " to-dos, " + notes + " notes, " + reminders + " reminders, " + birthdays + " birthdays";
     }
 
     @Override

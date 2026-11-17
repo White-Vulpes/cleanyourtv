@@ -84,6 +84,14 @@ public final class AsciiAnimalsView extends SurfaceView implements SurfaceHolder
         handler.post(renderer::release);
     }
 
+    /**
+     * Birthdays: show fireworks behind this text (for example "Happy Birthday Mau") instead of the animals, until
+     * it is set back to null. Safe to call every minute: the same text changes nothing.
+     */
+    public void setBanner(String text) {
+        handler.post(() -> renderer.banner(text));
+    }
+
     /** The activity is going away: stop and end the thread. */
     public void close() {
         handler.post(renderer::stop);
@@ -126,6 +134,8 @@ public final class AsciiAnimalsView extends SurfaceView implements SurfaceHolder
         @SuppressWarnings("rawtypes")
         private Flock flock;
         private int index = -1;
+        /** Birthday text shown with fireworks instead of the animals; null for the animals. */
+        private String banner;
         private long animalSince;
         private float[] gridLines = new float[0];
         private float baseline;
@@ -154,7 +164,10 @@ public final class AsciiAnimalsView extends SurfaceView implements SurfaceHolder
         void start() {
             if (running) return;
             running = true;
-            if (flock == null) useAnimal(Math.max(0, index));
+            if (flock == null) {
+                if (banner != null) useFireworks(banner);
+                else useAnimal(Math.max(0, index));
+            }
             lastNs = 0;
             Choreographer.getInstance().postFrameCallback(this);
         }
@@ -170,6 +183,29 @@ public final class AsciiAnimalsView extends SurfaceView implements SurfaceHolder
             flock = null;
             atlas = atlasArgb = null;
             atlasCanvas = null;
+        }
+
+        /** Fireworks behind text, or (null) back to the animal that was showing. */
+        void banner(String text) {
+            String t = text == null || text.trim().isEmpty() ? null : text.trim();
+            if (t == null ? banner == null : t.equals(banner)) return;
+            banner = t;
+            fadeStart = -1;
+            shadeAlpha = 0;
+            if (flock == null) return;   // start() picks it up
+            if (t != null) useFireworks(t);
+            else useAnimal(Math.max(0, index));
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private void useFireworks(String text) {
+            Animal<?> animal = new Fireworks(text);
+            tuning = new Tuning();
+            animal.defaults(tuning);
+            flock = new Flock(animal, tuning, 0);
+            grid.tuning = tuning;
+            grid.setAnimal(animal, tuning);
+            layoutGrid();
         }
 
         void resize(int w, int h) {
@@ -257,7 +293,7 @@ public final class AsciiAnimalsView extends SurfaceView implements SurfaceHolder
 
         /** Hand over to the next animal with a short fade through the background. */
         private void rotate() {
-            if (rotateMs == 0 || keys.size() < 2) return;
+            if (banner != null || rotateMs == 0 || keys.size() < 2) return;
             long now = SystemClock.uptimeMillis();
             if (fadeStart < 0) {
                 if (now - animalSince < rotateMs) return;
@@ -422,7 +458,7 @@ public final class AsciiAnimalsView extends SurfaceView implements SurfaceHolder
             float secs = (now - statsSince) / 1000f;
             Log.d(TAG, String.format(java.util.Locale.ROOT,
                     "%s: %.1f fps, sim %.2f ms, raster %.2f ms, draw %.2f ms, %d cells per frame",
-                    keys.get(index), statsFrames / secs, simNs / 1e6 / statsFrames, rasterNs / 1e6 / statsFrames,
+                    banner != null ? "fireworks" : keys.get(index), statsFrames / secs, simNs / 1e6 / statsFrames, rasterNs / 1e6 / statsFrames,
                     drawNs / 1e6 / statsFrames, statsCells / statsFrames));
             statsSince = now;
             simNs = rasterNs = drawNs = statsCells = 0;

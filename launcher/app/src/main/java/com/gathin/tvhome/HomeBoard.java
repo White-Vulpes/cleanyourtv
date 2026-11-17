@@ -166,19 +166,30 @@ final class HomeBoard {
 
     // ---- the panel ---------------------------------------------------------------------------------------------
 
-    /** Three transparent columns: To do, Notes, Reminders. Built in code; never focusable. */
+    /**
+     * Three transparent columns: To do, Notes, Reminders. One line per item, so a column holds {@code maxItems}
+     * of them; items past that are left off (there is no "+N more" line). Built in code; never focusable.
+     */
     static final class Panel extends LinearLayout {
-        private static final int LINES = 6;
+        private static final int TIME = 0xCCFFD27A, LATE = 0xFFFF8A80, DIM = 0x99FFFFFF, EMPTY = 0x80FFFFFF;
         private final Column todo, notes, reminders;
         private final float dp;
+        private final int maxItems;
+        private final float textSp;
 
+        /** Home: 6 items of 15 sp. The screensaver: 10 of 14 sp. */
         Panel(Context c) {
+            this(c, 6, 15f);
+        }
+
+        Panel(Context c, int maxItems, float textSp) {
             super(c);
+            this.maxItems = maxItems;
+            this.textSp = textSp;
             dp = c.getResources().getDisplayMetrics().density;
             setOrientation(HORIZONTAL);
             setFocusable(false);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-            setClipChildren(true);
             todo = new Column(c, "To do");
             notes = new Column(c, "Notes");
             reminders = new Column(c, "Reminders");
@@ -190,6 +201,7 @@ final class HomeBoard {
         void show(List<Entry> all, String status) {
             List<Entry> t = new ArrayList<>(), n = new ArrayList<>(), r = new ArrayList<>();
             for (Entry e : all) {
+                if ("birthday".equals(e.kind)) continue;   // Birthdays turn the background into fireworks instead
                 if ("note".equals(e.kind)) n.add(e);
                 else if ("reminder".equals(e.kind)) r.add(e);
                 else t.add(e);
@@ -200,14 +212,37 @@ final class HomeBoard {
             if (all.isEmpty() && !status.isEmpty()) {
                 hint = "no token".equals(status) ? "Not connected to Todoist yet" : "Todoist: " + status;
             }
-            todo.fill(t, hint != null ? hint : "Nothing to do", LINES, Column.TODO);
-            notes.fill(n, hint != null ? "" : "No notes", LINES, Column.NOTE);
-            reminders.fill(r, hint != null ? "" : "No reminders", LINES, Column.REMINDER);
+            List<CharSequence> lines = new ArrayList<>();
+            for (Entry e : t) {
+                lines.add(e.dueMs >= 0 ? join("○  " + e.text, "  · " + shortDay(e.dueMs), DIM) : "○  " + e.text);
+            }
+            todo.fill(lines, hint != null ? hint : "Nothing to do");
+            lines = new ArrayList<>();
+            for (Entry e : n) lines.add(e.detail.isEmpty() ? e.text : join(e.text, "  — " + e.detail, DIM));
+            notes.fill(lines, hint != null ? "" : "No notes");
+            lines = new ArrayList<>();
+            for (Entry e : r) lines.add(reminder(e));
+            reminders.fill(lines, hint != null ? "" : "No reminders");
         }
 
-        /** One column: a small heading and up to LINES lines, then "+N more". */
+        /** "6:00 PM  Call mom": the time in gold (red once it has passed), then the text. */
+        private static CharSequence reminder(Entry e) {
+            boolean[] late = new boolean[1];
+            String when = when(e, late);
+            android.text.SpannableStringBuilder b = new android.text.SpannableStringBuilder(when);
+            b.setSpan(new android.text.style.ForegroundColorSpan(late[0] ? LATE : TIME), 0, when.length(), 0);
+            b.append("  ").append(e.text);
+            return b;
+        }
+
+        private static CharSequence join(String main, String tail, int tailColour) {
+            android.text.SpannableStringBuilder b = new android.text.SpannableStringBuilder(main).append(tail);
+            b.setSpan(new android.text.style.ForegroundColorSpan(tailColour), main.length(), b.length(), 0);
+            return b;
+        }
+
+        /** One column: a small heading, then one line per item, up to maxItems. */
         private final class Column extends LinearLayout {
-            static final int TODO = 0, NOTE = 1, REMINDER = 2;
             private final List<TextView> pool = new ArrayList<>();
 
             Column(Context c, String title) {
@@ -222,73 +257,31 @@ final class HomeBoard {
                 addView(head);
             }
 
-            void fill(List<Entry> items, String empty, int lines, int type) {
-                int used = 0, shown = 0;
-                List<CharSequence[]> rows = new ArrayList<>();   // {small line or null, main line}
-                for (Entry e : items) {
-                    int cost = type == REMINDER || (type == NOTE && !e.detail.isEmpty()) ? 2 : 1;
-                    boolean last = shown == items.size() - 1;
-                    if (used + cost > lines - (last ? 0 : 1)) break;
-                    if (type == REMINDER) {
-                        rows.add(new CharSequence[] {when(e), e.text});
-                    } else if (type == NOTE) {
-                        rows.add(new CharSequence[] {null, e.text});
-                        if (!e.detail.isEmpty()) rows.add(new CharSequence[] {"~", e.detail});
-                    } else {
-                        String due = e.dueMs >= 0 ? "  · " + shortDay(e.dueMs) : "";
-                        rows.add(new CharSequence[] {null, "○  " + e.text + due});
-                    }
-                    used += cost;
-                    shown++;
-                }
-                int rest = items.size() - shown;
+            void fill(List<CharSequence> lines, String empty) {
                 int k = 0;
-                Context c = getContext();
-                if (items.isEmpty()) {
-                    if (!empty.isEmpty()) k = put(c, k, null, empty, 0x80FFFFFF);
+                if (lines.isEmpty()) {
+                    if (!empty.isEmpty()) put(k++, empty, EMPTY);
                 } else {
-                    for (CharSequence[] row : rows) {
-                        if ("~".equals(row[0])) {
-                            k = put(c, k, null, row[1], 0x99FFFFFF);
-                        } else {
-                            if (row[0] != null) k = put(c, k, row[0], null, 0);
-                            k = put(c, k, null, row[1], 0xEEFFFFFF);
-                        }
-                    }
-                    if (rest > 0) k = put(c, k, null, "+" + rest + " more", 0x80FFFFFF);
+                    for (int i = 0; i < lines.size() && i < maxItems; i++) put(k++, lines.get(i), 0xEEFFFFFF);
                 }
                 for (int i = k; i < pool.size(); i++) pool.get(i).setVisibility(GONE);
             }
 
-            /** Reuse or add the k-th line: a small kicker when kicker != null, else a body line. */
-            private int put(Context c, int k, CharSequence kicker, CharSequence body, int colour) {
+            private void put(int k, CharSequence s, int colour) {
                 TextView v;
                 if (k < pool.size()) {
                     v = pool.get(k);
                 } else {
-                    v = text(c, 15, R.string.font_regular, 0xEEFFFFFF);
+                    v = text(getContext(), textSp, R.string.font_regular, colour);
                     v.setSingleLine(true);
                     v.setEllipsize(TextUtils.TruncateAt.END);
+                    v.setPadding(0, 0, 0, Math.round(4 * dp));
                     pool.add(v);
                     addView(v);
                 }
                 v.setVisibility(VISIBLE);
-                if (kicker != null) {
-                    v.setText(kicker);
-                    v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-                    v.setTypeface(UiFont.get(c, R.string.font_medium));
-                    v.setLetterSpacing(0.08f);
-                    v.setTextColor(kicker.toString().startsWith("Overdue") ? 0xFFFF8A80 : 0xCCFFD27A);
-                    v.setPadding(0, Math.round(2 * dp), 0, 0);
-                } else {
-                    v.setText(body);
-                    v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-                    v.setTypeface(UiFont.get(c, R.string.font_regular));
-                    v.setLetterSpacing(0f);
-                    v.setTextColor(colour);
-                    v.setPadding(0, 0, 0, Math.round(3 * dp));
-                }
-                return k + 1;
+                v.setTextColor(colour);
+                v.setText(s);
             }
 
             private TextView text(Context c, float sp, int font, int colour) {
@@ -305,16 +298,17 @@ final class HomeBoard {
             }
         }
 
-        private static String when(Entry e) {
+        /** "6:00 PM" today, "Tomorrow 9:00 AM", "Tue 25 Nov"; late[0] is set once it has passed. */
+        private static String when(Entry e, boolean[] late) {
+            if (e.dueMs < 0) return e.recurring ? "↻" : "•";
             ZoneId z = ZoneId.systemDefault();
             ZonedDateTime due = Instant.ofEpochMilli(e.dueMs).atZone(z);
-            if (e.dueMs < 0) return e.recurring ? "Repeats" : "No date";
             LocalDate today = LocalDate.now(z);
-            long now = System.currentTimeMillis();
-            String day = day(due.toLocalDate(), today);
-            String time = e.allDay ? "" : " " + due.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH));
-            boolean overdue = e.allDay ? due.toLocalDate().isBefore(today) : e.dueMs < now;
-            return (overdue ? "Overdue · " : "") + day + time + (e.recurring ? "  ↻" : "");
+            late[0] = e.allDay ? due.toLocalDate().isBefore(today) : e.dueMs < System.currentTimeMillis();
+            String time = e.allDay ? "" : due.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH));
+            String day = due.toLocalDate().equals(today) ? "" : day(due.toLocalDate(), today);
+            String s = day.isEmpty() ? (time.isEmpty() ? "Today" : time) : (time.isEmpty() ? day : day + " " + time);
+            return s + (e.recurring ? " ↻" : "");
         }
 
         private static String shortDay(long ms) {

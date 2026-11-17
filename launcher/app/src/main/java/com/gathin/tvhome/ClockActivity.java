@@ -30,6 +30,7 @@ public class ClockActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE);
         scene = new ClockScene(getWindow().getDecorView());
         scene.useHomeWallpaper(this);
+        scene.useAnimalsAndBoard(this);
     }
 
     @Override
@@ -43,6 +44,12 @@ public class ClockActivity extends Activity {
         scene.stop();
         super.onPause();
         finish();   // never left behind in the back stack
+    }
+
+    @Override
+    protected void onDestroy() {
+        scene.close();
+        super.onDestroy();
     }
 
     @Override
